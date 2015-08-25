@@ -1,6 +1,5 @@
 ﻿using System;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using Fclp;
 using Mono.Cecil;
@@ -15,22 +14,19 @@ namespace IL_Rewriting
             var p = new FluentCommandLineParser<ApplicationArguments>();
             p.Setup(appArg => appArg.FileName).As('f', "fileName");
             var result = p.Parse(args);
-            if(result.HasErrors)throw new ArgumentException(string.Join(",",args));
-
+            if (result.HasErrors) throw new ArgumentException(string.Join(",", args));
             var assemblyDefinition = AssemblyDefinition.ReadAssembly(p.Object.FileName);
-
             foreach (var moduleDefinition in assemblyDefinition.Modules)
             {
                 foreach (var typeDefinition in moduleDefinition.Types)
                 {
-                    if(typeDefinition.CustomAttributes.Contains(new CustomAttribute(assemblyDefinition.MainModule.Import(typeof(NotifyPropertyChanged).GetConstructor(Type.EmptyTypes)))))
+                    if (typeDefinition.CustomAttributes.Contains(new CustomAttribute(assemblyDefinition.MainModule.Import(typeof(NotifyPropertyChanged).GetConstructor(Type.EmptyTypes)))))
                     {
                         ImplementINotifyPropertyChanged(assemblyDefinition, typeDefinition);
                     }
                 }
             }
-
-            assemblyDefinition.Write(p.Object.FileName,new WriterParameters(){WriteSymbols = true});
+            assemblyDefinition.Write(p.Object.FileName);
 
         }
 
@@ -48,19 +44,38 @@ namespace IL_Rewriting
                 , EventAttributes.None
                 , assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler)));
 
+            var removePropertyChanged = CreateEventRemoveMethod(assemblyDefinition, propertyChangedFieldDefinition);
+            propertyChangedEventDefinition.RemoveMethod = removePropertyChanged;
+            typeDefinition.Methods.Add(removePropertyChanged);
+
+            var addPropertyChanged = CreateEventAddMethod(assemblyDefinition, propertyChangedFieldDefinition);
+            propertyChangedEventDefinition.AddMethod = addPropertyChanged;
+            typeDefinition.Methods.Add(addPropertyChanged);
+            typeDefinition.Events.Add(propertyChangedEventDefinition);
+
+            var propertyChanged = CreateOnPropertyChangedMethod(assemblyDefinition, propertyChangedFieldDefinition);
+            typeDefinition.Methods.Add(propertyChanged);
+            ReWriteProperties(typeDefinition, propertyChanged);
+        }
+
+        private static MethodDefinition CreateEventRemoveMethod(AssemblyDefinition assemblyDefinition,
+            FieldDefinition propertyChangedFieldDefinition)
+        {
             var removeMethodDefinition = assemblyDefinition.MainModule.Import(typeof(Delegate).GetMethod("Remove",
                 new[] { typeof(Delegate), typeof(Delegate) }));
 
             var removePropertyChanged = new MethodDefinition("remove_PropertyChanged", MethodAttributes.Public |
-            MethodAttributes.SpecialName |
-            MethodAttributes.NewSlot |
-            MethodAttributes.HideBySig |
-            MethodAttributes.Virtual |
-            MethodAttributes.Final
-            , assemblyDefinition.MainModule.Import(typeof(void)));
+                                                                                       MethodAttributes.SpecialName |
+                                                                                       MethodAttributes.NewSlot |
+                                                                                       MethodAttributes.HideBySig |
+                                                                                       MethodAttributes.Virtual |
+                                                                                       MethodAttributes.Final
+                , assemblyDefinition.MainModule.Import(typeof(void)));
 
-            removePropertyChanged.Overrides.Add(assemblyDefinition.MainModule.Import(typeof(INotifyPropertyChanged).GetMethod("remove_PropertyChanged")));
-            removePropertyChanged.Parameters.Add(new ParameterDefinition(assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler))));
+            removePropertyChanged.Overrides.Add(
+                assemblyDefinition.MainModule.Import(typeof(INotifyPropertyChanged).GetMethod("remove_PropertyChanged")));
+            removePropertyChanged.Parameters.Add(
+                new ParameterDefinition(assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler))));
             var il = removePropertyChanged.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_0);
@@ -70,19 +85,26 @@ namespace IL_Rewriting
             il.Emit(OpCodes.Castclass, assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler)));
             il.Emit(OpCodes.Stfld, propertyChangedFieldDefinition);
             il.Emit(OpCodes.Ret);
-            propertyChangedEventDefinition.RemoveMethod = removePropertyChanged;
-            typeDefinition.Methods.Add(removePropertyChanged);
+            return removePropertyChanged;
+        }
 
+        private static MethodDefinition CreateEventAddMethod(AssemblyDefinition assemblyDefinition,
+            FieldDefinition propertyChangedFieldDefinition)
+        {
+            ILProcessor il;
             var addMethodDefinition = assemblyDefinition.MainModule.Import(typeof(Delegate).GetMethod("Combine",
                 new[] { typeof(Delegate), typeof(Delegate) }));
             var addPropertyChanged = new MethodDefinition("add_PropertyChanged", MethodAttributes.Public |
-            MethodAttributes.SpecialName |
-            MethodAttributes.NewSlot |
-            MethodAttributes.HideBySig |
-            MethodAttributes.Virtual |
-            MethodAttributes.Final, assemblyDefinition.MainModule.Import(typeof(void)));
-            addPropertyChanged.Parameters.Add(new ParameterDefinition(assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler))));
-            addPropertyChanged.Overrides.Add(assemblyDefinition.MainModule.Import(typeof(INotifyPropertyChanged).GetMethod("add_PropertyChanged")));
+                                                                                 MethodAttributes.SpecialName |
+                                                                                 MethodAttributes.NewSlot |
+                                                                                 MethodAttributes.HideBySig |
+                                                                                 MethodAttributes.Virtual |
+                                                                                 MethodAttributes.Final,
+                assemblyDefinition.MainModule.Import(typeof(void)));
+            addPropertyChanged.Parameters.Add(
+                new ParameterDefinition(assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler))));
+            addPropertyChanged.Overrides.Add(
+                assemblyDefinition.MainModule.Import(typeof(INotifyPropertyChanged).GetMethod("add_PropertyChanged")));
             il = addPropertyChanged.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_0);
@@ -92,24 +114,27 @@ namespace IL_Rewriting
             il.Emit(OpCodes.Castclass, assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler)));
             il.Emit(OpCodes.Stfld, propertyChangedFieldDefinition);
             il.Emit(OpCodes.Ret);
-            propertyChangedEventDefinition.AddMethod = addPropertyChanged;
-            typeDefinition.Methods.Add(addPropertyChanged);
+            return addPropertyChanged;
+        }
 
-            typeDefinition.Events.Add(propertyChangedEventDefinition);
-
-            var propertyChanged = new MethodDefinition("OnPropertyChanged",
+        private static MethodDefinition CreateOnPropertyChangedMethod(AssemblyDefinition assemblyDefinition,
+            FieldReference propertyChangedFieldDefinition)
+        {
+            var propertyChangedMethod = new MethodDefinition("OnPropertyChanged",
                 MethodAttributes.Virtual | MethodAttributes.Public, assemblyDefinition.MainModule.Import(typeof(void)));
-            propertyChanged.Parameters.Add(new ParameterDefinition("propertyName", ParameterAttributes.None, assemblyDefinition.MainModule.Import(typeof(string)))
+            propertyChangedMethod.Parameters.Add(new ParameterDefinition("propertyName", ParameterAttributes.None,
+                assemblyDefinition.MainModule.Import(typeof(string)))
             {
                 CustomAttributes =
                 {
-                    new CustomAttribute(assemblyDefinition.MainModule.Import(typeof(CallerMemberNameAttribute).GetConstructor(Type.EmptyTypes)))
+                    new CustomAttribute(
+                        assemblyDefinition.MainModule.Import(typeof (CallerMemberNameAttribute).GetConstructor(Type.EmptyTypes)))
                 },
                 Attributes = ParameterAttributes.Optional
             });
-            var ilProcessor = propertyChanged.Body.GetILProcessor();
+            var ilProcessor = propertyChangedMethod.Body.GetILProcessor();
             var localVariableDefinition = assemblyDefinition.MainModule.Import(typeof(bool));
-            propertyChanged.Body.Variables.Add(new VariableDefinition(localVariableDefinition));
+            propertyChangedMethod.Body.Variables.Add(new VariableDefinition(localVariableDefinition));
             var returnLabel = Instruction.Create(OpCodes.Nop);
             ilProcessor.Emit(OpCodes.Nop);
             ilProcessor.Emit(OpCodes.Ldarg_0);
@@ -127,19 +152,21 @@ namespace IL_Rewriting
             ilProcessor.Emit(OpCodes.Callvirt, assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler).GetMethod("Invoke")));
             ilProcessor.Append(returnLabel);
             ilProcessor.Emit(OpCodes.Ret);
+            return propertyChangedMethod;
+        }
 
-            typeDefinition.Methods.Add(propertyChanged);
+        private static void ReWriteProperties(TypeDefinition typeDefinition, MethodReference propertyChanged)
+        {
             foreach (var propertyDefinition in typeDefinition.Properties)
             {
                 var fieldName = propertyDefinition.Name.ToCamelCase();
                 var fieldDefinition = new FieldDefinition(fieldName, FieldAttributes.Private, propertyDefinition.PropertyType);
                 typeDefinition.Fields.Add(fieldDefinition);
                 propertyDefinition.GetMethod.Body.Instructions.Clear();
-                il = propertyDefinition.GetMethod.Body.GetILProcessor();
+                var il = propertyDefinition.GetMethod.Body.GetILProcessor();
                 il.Emit(OpCodes.Ldarg_0);
                 il.Emit(OpCodes.Ldfld, fieldDefinition);
                 il.Emit(OpCodes.Ret);
-
                 propertyDefinition.SetMethod.Body.Instructions.Clear();
                 il = propertyDefinition.SetMethod.Body.GetILProcessor();
                 il.Emit(OpCodes.Nop);
