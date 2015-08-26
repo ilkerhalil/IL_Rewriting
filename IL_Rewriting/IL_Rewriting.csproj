@@ -72,8 +72,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ApplicationArguments.cs" />
-    <Compile Include="NotifyPropertyChanged.cs" />
-    <Compile Include="NotImplementPropertyNotifyPropertyChanged.cs" />
     <Compile Include="StringExtensions.cs" />
     <Compile Include="Person.cs" />
     <Compile Include="Program.cs" />
@@ -99,6 +97,12 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IL_Rewriting.Attributes\IL_Rewriting.Attributes.csproj">
+      <Project>{0b2e15c4-5fed-4b9c-80ac-2dd9fe9b19a0}</Project>
+      <Name>IL_Rewriting.Attributes</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

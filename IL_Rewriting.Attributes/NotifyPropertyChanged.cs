@@ -3,8 +3,7 @@ using System;
 namespace IL_Rewriting
 {
     [AttributeUsage(AttributeTargets.Class)]
-    public class NotifyPropertyChanged : Attribute
+    public class NotifyPropertyChanged:Attribute
     {
-
     }
 }

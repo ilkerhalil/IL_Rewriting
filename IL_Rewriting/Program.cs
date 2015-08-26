@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using Fclp;
 using Mono.Cecil;
@@ -26,8 +27,8 @@ namespace IL_Rewriting
                     }
                 }
             }
+            File.Delete(p.Object.FileName);
             assemblyDefinition.Write(p.Object.FileName);
-
         }
 
         private static void ImplementINotifyPropertyChanged(AssemblyDefinition assemblyDefinition, TypeDefinition typeDefinition)

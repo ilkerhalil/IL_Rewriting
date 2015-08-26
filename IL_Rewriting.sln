@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IL_Rewriting", "IL_Rewriting\IL_Rewriting.csproj", "{ED5207CE-C416-48AF-B376-F7444BA739E2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IL_Rewriting.Attributes", "IL_Rewriting.Attributes\IL_Rewriting.Attributes.csproj", "{0B2E15C4-5FED-4B9C-80AC-2DD9FE9B19A0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{ED5207CE-C416-48AF-B376-F7444BA739E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED5207CE-C416-48AF-B376-F7444BA739E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED5207CE-C416-48AF-B376-F7444BA739E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B2E15C4-5FED-4B9C-80AC-2DD9FE9B19A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B2E15C4-5FED-4B9C-80AC-2DD9FE9B19A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B2E15C4-5FED-4B9C-80AC-2DD9FE9B19A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B2E15C4-5FED-4B9C-80AC-2DD9FE9B19A0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
