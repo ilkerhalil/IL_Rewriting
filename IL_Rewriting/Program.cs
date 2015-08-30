@@ -21,9 +21,12 @@ namespace IL_Rewriting
             {
                 foreach (var typeDefinition in moduleDefinition.Types)
                 {
-                    if (typeDefinition.CustomAttributes.Contains(new CustomAttribute(assemblyDefinition.MainModule.Import(typeof(NotifyPropertyChanged).GetConstructor(Type.EmptyTypes)))))
+                    foreach (var customAttributes in typeDefinition.CustomAttributes)
                     {
-                        ImplementINotifyPropertyChanged(assemblyDefinition, typeDefinition);
+                        if (customAttributes.AttributeType.Name == "NotifyPropertyChanged")
+                        {
+                            ImplementINotifyPropertyChanged(assemblyDefinition, typeDefinition);
+                        }
                     }
                 }
             }
@@ -33,34 +36,44 @@ namespace IL_Rewriting
 
         private static void ImplementINotifyPropertyChanged(AssemblyDefinition assemblyDefinition, TypeDefinition typeDefinition)
         {
+
+            //Sınıfa INotifyPropertyChanged interface'ini implement ediyoruz.
             typeDefinition.Interfaces.Add(assemblyDefinition.MainModule.Import(typeof(INotifyPropertyChanged)));
 
+
+            //Sınıfa PropertyChanged isimli PropertyChangedEventHandler tipinden bir field ekliyoruz.
             var propertyChangedFieldDefinition = new FieldDefinition("PropertyChanged"
                 , FieldAttributes.Private
                 , assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler)));
-
             typeDefinition.Fields.Add(propertyChangedFieldDefinition);
 
+
+            //Sınıfa PropertyChanged isimli bir event dahil ediyoruz.
             var propertyChangedEventDefinition = new EventDefinition("PropertyChanged"
                 , EventAttributes.None
                 , assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler)));
 
+            //Eklediğimiz event'in Remove Metodunu yazıyoruz.
             var removePropertyChanged = CreateEventRemoveMethod(assemblyDefinition, propertyChangedFieldDefinition);
             propertyChangedEventDefinition.RemoveMethod = removePropertyChanged;
             typeDefinition.Methods.Add(removePropertyChanged);
+
+            //Eklediğimiz event'in Add Metodunu yazıyoruz.
 
             var addPropertyChanged = CreateEventAddMethod(assemblyDefinition, propertyChangedFieldDefinition);
             propertyChangedEventDefinition.AddMethod = addPropertyChanged;
             typeDefinition.Methods.Add(addPropertyChanged);
             typeDefinition.Events.Add(propertyChangedEventDefinition);
 
+            //PropertyChange event'ini tetikleyen metodumuzu yazıp,sınıfımıza dahil ediyoruz. 
             var propertyChanged = CreateOnPropertyChangedMethod(assemblyDefinition, propertyChangedFieldDefinition);
             typeDefinition.Methods.Add(propertyChanged);
+            //Varolan property'leri değiştirip kendi kodumuzu ekliyoruz.
             ReWriteProperties(typeDefinition, propertyChanged);
         }
 
         private static MethodDefinition CreateEventRemoveMethod(AssemblyDefinition assemblyDefinition,
-            FieldDefinition propertyChangedFieldDefinition)
+            FieldReference propertyChangedFieldDefinition)
         {
             var removeMethodDefinition = assemblyDefinition.MainModule.Import(typeof(Delegate).GetMethod("Remove",
                 new[] { typeof(Delegate), typeof(Delegate) }));
@@ -90,9 +103,8 @@ namespace IL_Rewriting
         }
 
         private static MethodDefinition CreateEventAddMethod(AssemblyDefinition assemblyDefinition,
-            FieldDefinition propertyChangedFieldDefinition)
+            FieldReference propertyChangedFieldDefinition)
         {
-            ILProcessor il;
             var addMethodDefinition = assemblyDefinition.MainModule.Import(typeof(Delegate).GetMethod("Combine",
                 new[] { typeof(Delegate), typeof(Delegate) }));
             var addPropertyChanged = new MethodDefinition("add_PropertyChanged", MethodAttributes.Public |
@@ -106,7 +118,7 @@ namespace IL_Rewriting
                 new ParameterDefinition(assemblyDefinition.MainModule.Import(typeof(PropertyChangedEventHandler))));
             addPropertyChanged.Overrides.Add(
                 assemblyDefinition.MainModule.Import(typeof(INotifyPropertyChanged).GetMethod("add_PropertyChanged")));
-            il = addPropertyChanged.Body.GetILProcessor();
+            var il = addPropertyChanged.Body.GetILProcessor();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, propertyChangedFieldDefinition);
